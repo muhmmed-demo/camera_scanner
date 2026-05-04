@@ -25,8 +25,8 @@ android.permissions = INTERNET, ACCESS_WIFI_STATE, ACCESS_NETWORK_STATE, CHANGE_
 android.api = 33
 android.minapi = 26
 android.ndk = 25b
-android.sdk = 33
 android.archs = arm64-v8a, armeabi-v7a
+
 
 # السماح ببناء Debug APK
 android.debug = True
