@@ -53,7 +53,8 @@ jobs:
 
       - name: 🔨 بناء ملف APK
         run: |
-          buildozer -v android debug
+          yes | buildozer -v android debug
+
 
       - name: 📤 رفع ملف APK كـ Artifact
         uses: actions/upload-artifact@v4
