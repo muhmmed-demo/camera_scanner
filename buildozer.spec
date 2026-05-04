@@ -22,8 +22,8 @@ fullscreen = 0
 
 # --- إعدادات أندرويد ---
 android.permissions = INTERNET, ACCESS_WIFI_STATE, ACCESS_NETWORK_STATE, CHANGE_WIFI_MULTICAST_STATE
-android.api = 33
-android.minapi = 26
+android.api = 34
+android.minapi = 21
 android.ndk = 25b
 android.archs = arm64-v8a, armeabi-v7a
 
