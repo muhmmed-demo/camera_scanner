@@ -10,11 +10,8 @@ source.include_exts = py,kv,png,jpg,atlas
 # الإصدار
 version = 1.0
 
-# المكتبات المطلوبة
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,wsdiscovery,ifaddr
-
-# أيقونة التطبيق (اختيارية، سنضع أيقونة افتراضية)
-# icon.filename = %(source.dir)s/icon.png
+# المكتبات المطلوبة - KivyMD 1.2.0 compatible
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
 
 # الواجهة
 orientation = portrait
@@ -26,15 +23,15 @@ android.api = 34
 android.minapi = 21
 android.ndk = 25b
 android.archs = arm64-v8a, armeabi-v7a
-
+android.accept_sdk_license = True
 
 # السماح ببناء Debug APK
 android.debug = True
 android.logcat_filters = *:S python:D
 
 # إعدادات Gradle
-android.gradle_dependencies = 
-android.add_jars = 
+android.gradle_dependencies =
+android.add_jars =
 
 # --- إعدادات iOS (غير مستخدمة حالياً) ---
 [buildozer]
