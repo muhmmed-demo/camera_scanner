@@ -28,6 +28,7 @@ import traceback
 
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
+from kivymd.uix.screenmanager import MDScreenManager
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
@@ -40,9 +41,9 @@ from kivy.lang import Builder
 from kivy.metrics import dp
 from kivy.utils import get_color_from_hex
 from kivy.logger import Logger
+from kivy.animation import Animation
 
 # --- ملف تصميم الواجهة (KV Language) ---
-# Compatible with KivyMD 1.2.0
 KV = """
 <SeparatorLine@Widget>:
     size_hint_y: None
@@ -63,6 +64,109 @@ KV = """
     md_bg_color: 0.12, 0.14, 0.2, 1
     radius: [dp(16)]
     elevation: 4
+
+<SplashScreen>:
+    name: "splash"
+    md_bg_color: 0.04, 0.05, 0.12, 1
+
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: dp(40)
+        spacing: dp(20)
+        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+        size_hint: 1, 1
+
+        Widget:
+            size_hint_y: 0.15
+
+        # Glowing circle / logo area
+        MDBoxLayout:
+            size_hint_y: None
+            height: dp(180)
+            orientation: "vertical"
+
+            MDCard:
+                id: logo_card
+                size_hint: None, None
+                size: dp(130), dp(130)
+                pos_hint: {"center_x": 0.5}
+                md_bg_color: 0.08, 0.42, 0.78, 1
+                radius: [dp(65)]
+                elevation: 18
+
+                MDLabel:
+                    text: "🐄"
+                    font_size: "58sp"
+                    halign: "center"
+                    valign: "center"
+
+        # App Name
+        MDLabel:
+            id: title_label
+            text: "Ms Moo"
+            halign: "center"
+            font_style: "H3"
+            bold: True
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            size_hint_y: None
+            height: dp(60)
+            opacity: 0
+
+        # Subtitle
+        MDLabel:
+            id: subtitle_label
+            text: "Camera Scanner"
+            halign: "center"
+            font_style: "H6"
+            theme_text_color: "Custom"
+            text_color: 0.4, 0.72, 1, 1
+            size_hint_y: None
+            height: dp(36)
+            opacity: 0
+
+        # Tagline
+        MDLabel:
+            id: tagline_label
+            text: "Secure Network. Protect Your World."
+            halign: "center"
+            font_style: "Body2"
+            theme_text_color: "Custom"
+            text_color: 0.7, 0.7, 0.85, 1
+            size_hint_y: None
+            height: dp(30)
+            opacity: 0
+
+        Widget:
+            size_hint_y: 0.12
+
+        # Loading indicator
+        MDBoxLayout:
+            id: loading_box
+            orientation: "horizontal"
+            size_hint_y: None
+            height: dp(40)
+            spacing: dp(12)
+            pos_hint: {"center_x": 0.5}
+            opacity: 0
+
+            MDSpinner:
+                size_hint: None, None
+                size: dp(22), dp(22)
+                pos_hint: {"center_y": 0.5}
+                active: True
+                color: 0.4, 0.72, 1, 1
+
+            MDLabel:
+                text: "Initializing..."
+                font_style: "Body2"
+                theme_text_color: "Custom"
+                text_color: 0.6, 0.6, 0.8, 1
+                adaptive_height: True
+                pos_hint: {"center_y": 0.5}
+
+        Widget:
+            size_hint_y: 0.1
 
 <MainScreen>:
     name: "main"
@@ -85,7 +189,7 @@ KV = """
             elevation: 6
 
             MDLabel:
-                text: "Camera Scanner"
+                text: "Ms Moo — Camera Scanner"
                 halign: "center"
                 font_style: "H5"
                 bold: True
@@ -158,6 +262,52 @@ KV = """
                 padding: [0, 0, 0, dp(10)]
                 adaptive_height: True
 """
+
+
+class SplashScreen(MDScreen):
+    """شاشة الترحيب المخصصة لـ Ms Moo"""
+
+    def on_enter(self):
+        """تشغيل الأنيميشن فور ظهور الشاشة"""
+        Clock.schedule_once(self._animate_in, 0.1)
+
+    def _animate_in(self, dt):
+        # أنيميشن الشعار (ينبض)
+        logo_card = self.ids.logo_card
+        anim_logo = (
+            Animation(size=(dp(145), dp(145)), duration=0.5, t='out_back') +
+            Animation(size=(dp(130), dp(130)), duration=0.3, t='in_out_quad')
+        )
+        anim_logo.start(logo_card)
+
+        # ظهور العنوان
+        title = self.ids.title_label
+        Animation(opacity=1, duration=0.7, t='out_quad').start(title)
+
+        # ظهور العنوان الفرعي بتأخير
+        Clock.schedule_once(lambda dt: Animation(opacity=1, duration=0.6, t='out_quad').start(self.ids.subtitle_label), 0.4)
+
+        # ظهور الشعار التعريفي
+        Clock.schedule_once(lambda dt: Animation(opacity=1, duration=0.6, t='out_quad').start(self.ids.tagline_label), 0.7)
+
+        # ظهور مؤشر التحميل
+        Clock.schedule_once(lambda dt: Animation(opacity=1, duration=0.5).start(self.ids.loading_box), 1.0)
+
+        # الانتقال للشاشة الرئيسية بعد 3 ثوانٍ
+        Clock.schedule_once(self._go_to_main, 3.0)
+
+    def _go_to_main(self, dt):
+        """الانتقال بأنيميشن سلس للشاشة الرئيسية"""
+        anim_out = Animation(opacity=0, duration=0.5, t='in_quad')
+        anim_out.bind(on_complete=lambda *args: self._switch_screen())
+        anim_out.start(self)
+
+    def _switch_screen(self):
+        self.manager.current = "main"
+
+
+class MainScreen(MDScreen):
+    pass
 
 
 class CameraCard(MDCard):
@@ -287,16 +437,12 @@ class CameraCard(MDCard):
         return sep
 
 
-class MainScreen(MDScreen):
-    pass
-
-
 class CameraScannerApp(MDApp):
 
     def build(self):
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "Blue"
-        self.title = "Camera Scanner"
+        self.title = "Ms Moo — Camera Scanner"
 
         try:
             Builder.load_string(KV)
@@ -305,13 +451,17 @@ class CameraScannerApp(MDApp):
             Logger.error(f"CameraScanner: KV load error: {e}")
             Logger.error(traceback.format_exc())
 
-        return MainScreen()
+        sm = MDScreenManager()
+        sm.add_widget(SplashScreen(name="splash"))
+        sm.add_widget(MainScreen(name="main"))
+        sm.current = "splash"
+        return sm
 
     def on_start(self):
         Logger.info("CameraScanner: App started successfully!")
 
     def start_scan(self):
-        screen = self.root
+        screen = self.root.get_screen("main")
         scan_btn = screen.ids.scan_btn
         progress_box = screen.ids.progress_box
         results_box = screen.ids.results_box
@@ -355,7 +505,6 @@ class CameraScannerApp(MDApp):
             wsd.stop()
         except ImportError:
             Logger.warning("CameraScanner: WSDiscovery not available, using fallback")
-            # Fallback: scan common IP range
             cameras = self._fallback_scan()
         except Exception as e:
             Logger.warning(f"CameraScanner: WSDiscovery error: {e}")
@@ -380,7 +529,6 @@ class CameraScannerApp(MDApp):
                 Logger.info(f"CameraScanner: Scanning subnet {subnet}.0/24")
 
                 def check_host(ip):
-                    """فحص سريع لجهاز واحد"""
                     camera_ports = [554, 80, 8080, 8000, 37777]
                     for port in camera_ports:
                         try:
@@ -447,11 +595,9 @@ class CameraScannerApp(MDApp):
             return False
 
     def _check_rtsp(self, ip):
-        # بدون مصادقة
         for path in RTSP_PATHS:
             if self._try_rtsp(ip, path):
                 return {'open': True, 'url': f'rtsp://{ip}{path}', 'creds': 'None', 'risk': 'CRITICAL'}
-        # كلمات مرور افتراضية
         for user, password in DEFAULT_CREDS:
             for path in RTSP_PATHS[:4]:
                 if self._try_rtsp(ip, path, user, password):
@@ -488,7 +634,7 @@ class CameraScannerApp(MDApp):
 
     def _on_scan_done(self, cameras):
         """تحديث الواجهة بعد انتهاء الفحص"""
-        screen = self.root
+        screen = self.root.get_screen("main")
         scan_btn = screen.ids.scan_btn
         progress_box = screen.ids.progress_box
         results_box = screen.ids.results_box
