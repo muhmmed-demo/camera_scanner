@@ -11,7 +11,7 @@ source.include_exts = py,kv,png,jpg,atlas
 version = 1.0
 
 # المكتبات المطلوبة - KivyMD 1.2.0 compatible
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow,requests,wsdiscovery,ifaddr
 
 # الواجهة
 orientation = portrait
