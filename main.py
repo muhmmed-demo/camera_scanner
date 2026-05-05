@@ -5,33 +5,30 @@ Ms Moo — Camera Scanner
 """
 
 # ── RTSP: 40+ مسار يشمل كل الشركات المعروفة ────────────────────────────────
+# أهم المسارات أولاً (Hikvision / EZVIZ) ثم البقية
 RTSP_PATHS = [
-    # Generic
-    "/", "/live", "/stream", "/video", "/video0", "/video1",
-    "/live/ch00_0", "/live/ch01_0",
-    # H.264
-    "/h264", "/h264/ch1/main/av_stream", "/h264/ch2/main/av_stream",
-    "/h264Preview_01_main", "/h264Preview_01_sub",
-    # Hikvision
+    # Hikvision & EZVIZ (الأكثر شيوعاً — تُفحص أولاً)
     "/Streaming/Channels/101", "/Streaming/Channels/102",
-    "/Streaming/Channels/201", "/ISAPI/Streaming/channels/101",
+    "/ISAPI/Streaming/channels/101",
+    "/h264/ch1/main/av_stream", "/h264/ch2/main/av_stream",
+    "/h264Preview_01_main", "/h264Preview_01_sub",
+    # EZVIZ specific
+    "/h264_stream", "/mpeg4_stream",
     # Dahua
     "/cam/realmonitor?channel=1&subtype=0",
     "/cam/realmonitor?channel=1&subtype=1",
-    "/cam/realmonitor?channel=2&subtype=0",
+    # Generic
+    "/", "/live", "/stream", "/video", "/video0", "/video1",
+    "/live/ch00_0", "/live/ch01_0", "/h264",
     # Axis
     "/axis-media/media.amp", "/mpeg4/media.amp",
     # Samsung / Hanwha
     "/profile1/media.smp", "/profile2/media.smp",
-    # Bosch
-    "/rtsp_tunnel",
     # Vivotek
-    "/live.sdp", "/live1.sdp", "/live2.sdp",
-    # Generic extras
-    "/stream1", "/stream2", "/ch0", "/ch1", "/ch01",
-    "/media/video1", "/media", "/mpeg4",
-    "/onvif/profile1/media.smp",
-    "/11", "/12",
+    "/live.sdp", "/live1.sdp",
+    # Extras
+    "/stream1", "/stream2", "/ch0", "/ch1",
+    "/media/video1", "/mpeg4", "/11", "/12",
 ]
 
 # ── HTTP Snapshot endpoints يشمل كل الشركات ─────────────────────────────────
@@ -86,6 +83,7 @@ DEFAULT_CREDS = [
 ]
 
 import os
+import concurrent.futures
 os.environ["KIVY_LOG_LEVEL"] = "warning"
 
 import threading
@@ -520,15 +518,22 @@ class CameraScannerApp(MDApp):
         hosts = self._discover_hosts()          # Phase 1: find hosts
         results = []
         total = max(len(hosts), 1)
+        lock = threading.Lock()
+        done = [0]
 
-        for idx, ip in enumerate(hosts, start=1):
-            pct = 10 + int(80 * idx / total)
-            msg = f"Deep-checking {ip}  ({idx}/{len(hosts)})"
-            Clock.schedule_once(lambda dt, p=pct, m=msg: self._set_progress(p, m))
-
+        def check_host(ip):
             ports = self._open_ports(ip)
             result = self._full_camera_check(ip, ports)
-            results.append((ip, result['status'], result.get('url'), result.get('method')))
+            with lock:
+                done[0] += 1
+                pct = 10 + int(80 * done[0] / total)
+                msg = f"Deep-checking {ip}  ({done[0]}/{total})"
+                Clock.schedule_once(lambda dt, p=pct, m=msg: self._set_progress(p, m))
+                results.append((ip, result['status'], result.get('url'), result.get('method')))
+
+        # فحص متوازي — كل الأجهزة في نفس الوقت
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(total, 20)) as ex:
+            list(ex.map(check_host, hosts))
 
         Clock.schedule_once(lambda dt: self._show_results(results))
 
@@ -562,32 +567,30 @@ class CameraScannerApp(MDApp):
         lip = self._local_ip()
         if lip:
             subnet = '.'.join(lip.split('.')[:3])
-            lock = threading.Lock()
+            disc_lock = threading.Lock()
             PROBE_PORTS = (554, 80, 8080, 8000, 37777, 1935)
 
-            def probe(ip):
-                if ip in found:
+            def probe(host):
+                if host in found:
                     return
                 for port in PROBE_PORTS:
                     try:
                         s = socket.socket()
-                        s.settimeout(0.28)
-                        if s.connect_ex((ip, port)) == 0:
+                        s.settimeout(0.25)
+                        if s.connect_ex((host, port)) == 0:
                             s.close()
-                            with lock:
-                                if ip not in found:
-                                    found.append(ip)
+                            with disc_lock:
+                                if host not in found:
+                                    found.append(host)
                             return
                         s.close()
                     except Exception:
                         pass
 
-        threads = [threading.Thread(target=probe, args=(f"{subnet}.{i}",), daemon=True)
-                   for i in range(1, 255)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=3.0)
+            # فحص متوازي بـ ThreadPool — أسرع بكثير
+            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as ex:
+                list(ex.map(probe, (f"{subnet}.{i}" for i in range(1, 255))))
+
         return found
 
     def _open_ports(self, ip):
@@ -637,7 +640,7 @@ class CameraScannerApp(MDApp):
             for path in HTTP_SNAPSHOT_PATHS:
                 try:
                     r = session.get(f'{scheme}://{ip}:{port}{path}',
-                                    timeout=2, verify=False, stream=True)
+                                    timeout=1.2, verify=False, stream=True)
                     ct = r.headers.get('Content-Type', '')
                     if r.status_code == 200 and any(x in ct for x in ('image', 'jpeg', 'video', 'multipart')):
                         return {'status': 'live', 'url': f'{scheme}://{ip}:{port}', 'method': 'HTTP Snapshot 📸'}
@@ -652,7 +655,7 @@ class CameraScannerApp(MDApp):
             for path in MJPEG_PATHS:
                 try:
                     r = session.get(f'{scheme}://{ip}:{port}{path}',
-                                    timeout=2.5, verify=False, stream=True)
+                                    timeout=1.2, verify=False, stream=True)
                     ct = r.headers.get('Content-Type', '')
                     if 'multipart' in ct or 'mjpeg' in ct.lower():
                         return {'status': 'live', 'url': f'{scheme}://{ip}:{port}', 'method': 'MJPEG Stream 🎥'}
@@ -668,7 +671,7 @@ class CameraScannerApp(MDApp):
                     '</s:Body></s:Envelope>')
             try:
                 r = session.post(f'http://{ip}:{port}/onvif/device_service',
-                                 data=soap, timeout=2,
+                                 data=soap, timeout=1.2,
                                  headers={'Content-Type': 'application/soap+xml'})
                 if 'Envelope' in r.text or 'onvif' in r.text.lower():
                     return {'status': 'locked',
@@ -678,13 +681,13 @@ class CameraScannerApp(MDApp):
                 pass
 
         # ── 5. HTTP Banner — requests تقرأ الـ Server header مباشرة ──
-        BRANDS = {'hikvision': 'Hikvision', 'dahua': 'Dahua', 'axis': 'Axis',
-                  'foscam': 'Foscam', 'reolink': 'Reolink', 'vivotek': 'Vivotek',
-                  'hanwha': 'Hanwha', 'bosch': 'Bosch', 'amcrest': 'Amcrest',
-                  'ubiquiti': 'Ubiquiti', 'dlink': 'D-Link'}
+        BRANDS = {'hikvision': 'Hikvision', 'ezviz': 'EZVIZ', 'dahua': 'Dahua',
+                  'axis': 'Axis', 'foscam': 'Foscam', 'reolink': 'Reolink',
+                  'vivotek': 'Vivotek', 'hanwha': 'Hanwha', 'bosch': 'Bosch',
+                  'amcrest': 'Amcrest', 'ubiquiti': 'Ubiquiti', 'dlink': 'D-Link'}
         for port in http_ports:
             try:
-                r = session.get(f'http://{ip}:{port}/', timeout=1.5, verify=False)
+                r = session.get(f'http://{ip}:{port}/', timeout=1.0, verify=False)
                 text = (r.headers.get('Server', '') + r.text[:400]).lower()
                 for key, name in BRANDS.items():
                     if key in text:
